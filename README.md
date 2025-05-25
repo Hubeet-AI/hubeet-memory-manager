@@ -156,4 +156,4 @@ CREATE TABLE memory_nodes (
 
 hubeet-memory-manager es parte de Hubeet (Solúnika).
 
-Contribuciones y feedback: [gustavo.b@solunika.com](mailto:gustavo.b@solunika.com)
+Contribuciones y feedback: [devops@solunika.com](mailto:devops@solunika.com)
