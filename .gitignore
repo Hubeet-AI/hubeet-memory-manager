@@ -1,0 +1,49 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jest coverage
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Misc
+*.tgz
+
+# Database
+*.sqlite
+*.db
+
+# Security
+secrets.env
+
+# Ignore test output
+/jest-test-results.json
+
+# Ignore local Postgres data (if any)
+pgdata/ 

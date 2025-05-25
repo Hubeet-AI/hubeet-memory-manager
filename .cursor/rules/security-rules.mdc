@@ -1,0 +1,121 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Security Rules for Hubeet Memory Manager
+
+## Database Security
+
+### Vector Storage
+- All vector operations must use parameterized queries
+- Vector dimensions must be validated before storage
+- Maximum vector size: 1536 dimensions
+- Vector similarity calculations must be rate-limited
+- Vector search operations must have timeout limits
+
+### PostgreSQL Security
+- Use connection pooling with max connections limit
+- Implement connection timeout
+- Use SSL/TLS for database connections
+- Implement query timeout
+- Use read-only transactions where possible
+- Implement row-level security for multi-tenant data
+
+## API Security
+
+### Input Validation
+- Validate all input vectors for correct dimensions
+- Sanitize all text inputs before embedding
+- Implement rate limiting per client
+- Validate memoryId format and permissions
+- Maximum text length for embeddings: 8192 characters
+
+### Authentication & Authorization
+- Require authentication for all memory operations
+- Implement role-based access control (RBAC)
+- Validate memoryId ownership
+- Implement API key rotation policy
+- Use JWT with short expiration times
+
+## Memory Management
+
+### Data Protection
+- Encrypt sensitive data at rest
+- Implement secure key management
+- Use environment variables for secrets
+- Implement audit logging for all operations
+- Regular security scanning of dependencies
+
+### Resource Limits
+- Maximum memory usage per operation: 1GB
+- Maximum concurrent operations: 100
+- Maximum batch size for vector operations: 1000
+- Implement circuit breakers for external services
+- Set timeout limits for all async operations
+
+## Error Handling
+
+### Security Logging
+- Log all security-related events
+- Implement structured logging
+- Never log sensitive data
+- Implement log rotation
+- Use secure logging transport
+
+### Exception Management
+- Never expose internal errors to clients
+- Implement custom error types
+- Log all exceptions with proper context
+- Implement graceful degradation
+- Use try-catch blocks for all async operations
+
+## Code Security
+
+### Best Practices
+- No hardcoded credentials
+- Use TypeScript strict mode
+- Implement input validation
+- Use prepared statements
+- Regular dependency updates
+- Implement security headers
+- Use Content Security Policy (CSP)
+
+### Vector Operations
+- Validate vector dimensions
+- Implement vector sanitization
+- Use secure random number generation
+- Implement vector operation timeouts
+- Validate similarity thresholds
+
+## Monitoring & Alerts
+
+### Security Monitoring
+- Monitor failed authentication attempts
+- Track API usage patterns
+- Monitor resource usage
+- Implement anomaly detection
+- Set up security alerts
+
+### Performance Monitoring
+- Monitor response times
+- Track memory usage
+- Monitor database performance
+- Implement health checks
+- Set up performance alerts
+
+## Compliance
+
+### Data Protection
+- Implement data retention policies
+- Support data deletion requests
+- Implement data export functionality
+- Maintain audit trails
+- Support data encryption
+
+### Documentation
+- Document all security measures
+- Maintain security incident response plan
+- Document compliance requirements
+- Keep security documentation updated
+- Document security testing procedures 
