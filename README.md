@@ -144,6 +144,51 @@ CREATE TABLE memory_nodes (
 );```
 ---
 
+
+# Vector Index Service
+
+...
+
+## Ejemplo: Uso de `MemorySelector` con Contexto Actual Automático
+
+```ts
+const context = await memorySelector.retrieveRelevantMemories({
+  query: '¿Cómo construyo el contexto actual en un sistema de memoria semántica?',
+  memoryId: 'user-session-42',
+  userIntent: 'Optimizar la selección de recuerdos en IA conversacional',
+  activeFile: 'app.ts',
+  tags: ['memory', 'llm', 'selector']
+});
+```
+
+### Internamente genera:
+
+```text
+INTENCIÓN DEL USUARIO: Optimizar la selección de recuerdos en IA conversacional
+PREGUNTA: ¿Cómo construyo el contexto actual en un sistema de memoria semántica?
+TAGS: memory, llm, selector
+ARCHIVO ACTUAL: app.ts
+```
+
+### Resultado esperado:
+
+```ts
+[
+  {
+    id: 'node-001',
+    text_original: 'Podés construir el contexto actual combinando la intención, archivo activo y los tags técnicos',
+    similarity: 0.92
+  },
+  {
+    id: 'node-047',
+    text_original: 'Una buena estrategia para recuperar recuerdos es usar embeddings de la situación actual',
+    similarity: 0.87
+  }
+]
+```
+
+
+
 ## Roadmap
 
 - Fine-tuning de criterios de compresión/contextualización.

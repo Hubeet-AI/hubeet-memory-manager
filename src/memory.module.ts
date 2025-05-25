@@ -3,25 +3,33 @@ import { MemoryService } from './memory.service';
 import { EmbeddingProvider } from './embedding.provider';
 import { VectorIndex } from './vector.index';
 import { Pool } from 'pg';
-
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MemorySelector } from './memory.selector'
 @Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+		}),
+	],
 	providers: [
 		MemoryService,
+		MemorySelector,
 		EmbeddingProvider,
 		VectorIndex,
 		{
 			provide: Pool,
-			useFactory: () => {
+			useFactory: (configService: ConfigService) => {
 				return new Pool({
-					host: process.env.DB_HOST || 'localhost',
-					port: parseInt(process.env.DB_PORT || '5432'),
-					database: process.env.DB_NAME || 'hubeet_memory',
-					user: process.env.DB_USER || 'hubeet_user',
-					password: process.env.DB_PASSWORD || 'yourpassword',
+					host: configService.get<string>('DB_HOST', 'localhost'),
+					port: configService.get<number>('DB_PORT', 5432),
+					database: configService.get<string>('DB_NAME', 'hubeet_memory'),
+					user: configService.get<string>('DB_USER', 'hubeet_user'),
+					password: configService.get<string>('DB_PASSWORD', 'yourpassword'),
 				});
 			},
+			inject: [ConfigService],
 		},
 	],
-	exports: [MemoryService],
+	exports: [MemoryService, MemorySelector],
 })
 export class MemoryModule { } 

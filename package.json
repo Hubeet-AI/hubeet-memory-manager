@@ -5,6 +5,8 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
+		"start": "node dist/app.js",
+		"dev": "npx ts-node-dev --respawn --transpile-only ./app.ts",
 		"build": "tsc",
 		"test": "jest --config jest.config.js",
 		"lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
@@ -28,7 +30,10 @@
 	},
 	"dependencies": {
 		"@nestjs/common": "^9.0.0",
+		"@nestjs/config": "^4.0.2",
 		"@nestjs/core": "^9.0.0",
+		"@types/dotenv": "^6.1.1",
+		"dotenv": "^16.5.0",
 		"pg": "^8.16.0",
 		"pgvector": "^0.1.8",
 		"reflect-metadata": "^0.1.13",
@@ -46,6 +51,7 @@
 		"prettier": "^2.8.7",
 		"ts-jest": "^29.1.0",
 		"ts-node": "^10.9.1",
+		"ts-node-dev": "^2.0.0",
 		"typescript": "^5.0.4"
 	},
 	"peerDependencies": {

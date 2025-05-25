@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { VectorIndex } from '../src/vector.index';
-import { Pool } from 'pg';
+import { Pool, QueryResult } from 'pg';
 import { BadRequestException } from '@nestjs/common';
 
 describe('VectorIndex', () => {
@@ -13,12 +13,15 @@ describe('VectorIndex', () => {
 
 	beforeEach(async () => {
 		const mockPool = {
-			query: jest.fn().mockImplementation(async (query, params) => {
+			query: jest.fn().mockImplementation(async (query, params): Promise<QueryResult> => {
 				if (typeof query === 'string') {
 					if (query.startsWith('INSERT')) {
 						return {
 							rows: [{ id: 'node-1', text_original: mockText, embedding: mockEmbedding, memoryId: mockMemoryId }],
 							rowCount: 1,
+							command: 'INSERT',
+							oid: 0,
+							fields: []
 						};
 					} else if (query.startsWith('SELECT')) {
 						return {
@@ -27,16 +30,25 @@ describe('VectorIndex', () => {
 								{ id: 'node-2', text_original: 'Result 2', similarity: 0.8 },
 							],
 							rowCount: 2,
+							command: 'SELECT',
+							oid: 0,
+							fields: []
 						};
 					} else if (query.startsWith('UPDATE')) {
 						return {
 							rows: [{ id: 'node-1', text_original: 'Updated content', embedding: mockEmbedding, memoryId: mockMemoryId, version_tag: 'v2' }],
 							rowCount: 1,
+							command: 'UPDATE',
+							oid: 0,
+							fields: []
 						};
 					} else if (query.startsWith('DELETE')) {
 						return {
 							rows: [],
 							rowCount: 1,
+							command: 'DELETE',
+							oid: 0,
+							fields: []
 						};
 					}
 				}
@@ -56,7 +68,7 @@ describe('VectorIndex', () => {
 		}).compile();
 
 		service = module.get<VectorIndex>(VectorIndex);
-		pool = module.get<Pool>(Pool);
+		pool = module.get<Pool>(Pool) as unknown as Pool;
 
 		// Reset mock before each test
 		jest.clearAllMocks();
@@ -113,7 +125,7 @@ describe('VectorIndex', () => {
 			jest.spyOn(pool, 'query').mockResolvedValueOnce({
 				rows: [],
 				rowCount: 0,
-			} as any);
+			} as unknown as never);
 
 			const result = await service.search(mockEmbedding, 2, mockMemoryId);
 
@@ -160,7 +172,7 @@ describe('VectorIndex', () => {
 
 	describe('error handling', () => {
 		it('should handle database connection errors', async () => {
-			jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('Connection failed'));
+			jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('Connection failed') as unknown as never);
 
 			await expect(
 				service.add({
@@ -172,7 +184,7 @@ describe('VectorIndex', () => {
 		});
 
 		it('should handle transaction errors', async () => {
-			jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('Transaction failed'));
+			jest.spyOn(pool, 'query').mockRejectedValueOnce(new Error('Transaction failed') as unknown as never);
 
 			await expect(
 				service.update({
