@@ -1,204 +1,187 @@
-# hubeet-memory-manager
+# Hubeet Memory – Subsistema de Memoria Semántica Jerárquica
 
-Hubeet Memory Manager es un módulo de memoria semántica vectorial escalable para Node.js y NestJS, diseñado para contextos de IA conversacional y recuperación eficiente de conocimiento a largo plazo. 
-
-Permite compactar, versionar y recuperar información densamente semántica por medio de embeddings, solucionando la clásica fragmentación del contexto y facilitando memorias mucho más "humanas" y contextuales para agentes y modelos de lenguaje.
+Repositorio oficial del subsistema de memoria para LLMs utilizado en el ecosistema de Hubeet. Este sistema permite almacenar, recuperar y evolucionar recuerdos de manera inteligente, estructurada y escalable.
 
 ---
 
-## Características Principales
 
-- **Compresión semántica:** Convierte fragmentos textuales en "nodos densos" de embeddings, preservando significado y facilitando búsquedas inteligentes.
-- **Indexado vectorial:** Integración plug&play con Annoy, Faiss o Pinecone para indexaciones eficientes.
-- **Actualización & Versionado de Nodos:** Permite reentrenar/actualizar nodos por cambios conceptuales, manteniendo históricos, version_tag y trazabilidad.
-- **Scoring Temporal:** Cada nodo mantiene tanto recency_score (reciente) como semantic_relevance, combinables según necesidad.
-- **Hooks customizables:** Admite lógica plug-in (hooks/callbacks) para decidir cuándo debe recuperarse contexto (recuperación bajo demanda, filtrado inteligente, etc.).
-- **Multimemoria por memoryId:** Permite instanciar y segregar memorias (ej. un servicio multicliente para varios agentes o contextos).
-- **API amigable para NestJS:** Fácil de integrar y ampliar como provider Nest o microservicio.
+## ¿Qué es esto?
+
+`hubeet-memory-manager` es una arquitectura de memoria vectorial contextual con:
+
+- Compresión semántica
+- Recuperación jerárquica
+- Atención negativa (recuerda qué ignorar)
+- Penalización y despenalización dinámica de recuerdos
+
+Todo esto usando PostgreSQL con `pgvector`, embeddings modernos y Node.js/NestJS.
+
+Acá tenés una sección introductoria simple, con ejemplos cotidianos y analogías con el funcionamiento del cerebro humano:
+
+⸻
+
+### ¿Qué intenta hacer este sistema? — Explicación para humanos
+
+Imaginá que tu cerebro fuera una computadora, y cada vez que querés recordar algo, tenés que revisar todos tus recuerdos, sin saber cuáles son relevantes. Sería agotador. Por eso tu mente filtra, resume, ignora y abstrae.
+
+Eso mismo estamos replicando acá:
+un sistema de memoria que piensa como vos.
+
+⸻
+
+### Ejemplo 1 – El bar y el mozo
+
+Vas siempre al mismo bar. El mozo no recuerda cada palabra que le dijiste en todas tus visitas. Solo recuerda lo importante:
+
+“Café cortado, sin azúcar, con medialuna.”
+
+Eso es compresión semántica: recordar lo útil, no todo.
+
+⸻
+
+### Ejemplo 2 – Ignorar lo inútil
+
+Tu cerebro ignora automáticamente cosas como:
+	•	La marca de la servilleta
+	•	La música de fondo si no te importa
+
+Acá hacemos lo mismo: los recuerdos irrelevantes se penalizan y bajan en el ranking.
+
+⸻
+
+### Ejemplo 3 – Pensar por capas
+
+Cuando alguien te pregunta “¿Qué hiciste hoy?”, no respondés con cada microacción. Primero das un resumen:
+“Trabajé toda la mañana, fui al gimnasio y cené con amigos.”
+Solo si te preguntan más, bajás al detalle.
+Eso es una memoria jerárquica. Primero lo abstracto. Luego el detalle si hace falta.
+
+⸻
+
+Este sistema hace eso, pero para máquinas. Les da capacidad de olvidar, priorizar y resumir, para que puedan pensar mejor y más rápido.
+
+---
+
+## Características Clave
+
+| Módulo                          | Función                                                                 |
+|-------------------------------|------------------------------------------------------------------------|
+| `MemoryService`               | Interfaz principal para guardar/recuperar texto                        |
+| `VectorIndex`                 | Gestión de almacenamiento/búsqueda en pgvector                         |
+| `MemorySelector`              | Recuperación inteligente con penalización, revalorización y jerarquía  |
+| `buildContextEmbedding`       | Arma un embedding semántico de la situación actual                    |
+| `compressNodes`               | Crea un nodo resumen con embeddings promediados                        |
 
 ---
 
 ## Instalación
 
 ```bash
-npm install @solunika/hubeet-memory-manager
+git clone https://github.com/solunika/hubeet-memory.git
+cd hubeet-memory
+npm install
 ```
 
-Requiere Node.js 18+ y NestJS 9+. Para operaciones vectoriales avanzadas, instala el backend deseado (ej. Annoy, Faiss, Pinecone).
+### Prerrequisitos
+- PostgreSQL + extensión `pgvector`
+- Tabla `memory_nodes` con los campos:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
 
----
-
-## Uso Básico (NestJS)
-
-```typescript
-@Injectable()
-export class MemoryService {
-  constructor(
-    private readonly embedding: EmbeddingProvider,
-    private readonly vectorIndex: VectorIndex,
-  ) {}
-
-  // Crear nodo denso
-  async createNode(text: string, memoryId: string) {
-    const embedding = await this.embedding.encode(text);
-    return await this.vectorIndex.add({ text_original: text, embedding, memoryId });
-  }
-
-  // Recuperar contexto relevante
-  async retrieveContext(query: string, memoryId: string, topK = 3) {
-    const qembed = await this.embedding.encode(query);
-    return await this.vectorIndex.search(qembed, topK, memoryId);
-  }
-}
-```
-
----
-
-## Versionado y Actualización de Nodos
-
-Cada vez que el conocimiento cambia o mejora, genera un nuevo embedding/nodo. Se archivan las versiones previas (detach blando/histórico), y la actualización lleva metadata: version_tag, fecha y motivo.
-
-```typescript
-async updateNode(nodeId: string, newText: string, memoryId: string) {
-  const embedding = await this.embedding.encode(newText);
-  // El nodo previo se archiva, el actualizado obtiene un version_tag único
-  return await this.vectorIndex.update({ id: nodeId, embedding, text_original: newText, memoryId });
-}
-```
-
-- **Soft update:** Solo actualiza si supera un umbral de diferencia semántica (configurable).
-- **Hooks automáticos:** Posibilidad de refrescar nodos periódicamente o por policy sobre cambios de corpus o trigger externos.
-
----
-
-## Scoring Temporal: Recency y Relevancia
-
-- **recency_score:** Pondera la frescura de la información (timestamp de último acceso, creación o update).
-- **semantic_relevance:** Proximidad vectorial respecto a la consulta.
-- El método de retrieval puede aceptar pesos custom para balancear ambos aspectos:
-
-```typescript
-async customRetrieve(query: string, memoryId: string, weights = { recency: 0.5, relevance: 0.5 }, topK = 5) {
-  // Lógica interna ajustable para scoring combinado temporal-semántico
-}
-```
-
----
-
-## Hooks para Recuperación Condicional (IA-aware)
-
-Permite definir un callback/hook por agente o solicitud que decide *cuándo* o *si* se expande el contexto histórico:
-
-```typescript
-const shouldRecover = (input: string, chatState: SessionContext) => {
-  // Regla plugin del agente: retorna true/false
-  // Ej: solo recuperar si input desconcierta al modelo
-};
-
-if (shouldRecover(userText, ctx)) {
-  const recovered = await memory.retrieveContext(userText, memoryId);
-  // Mezclar recovered con el siguiente prompt
-}
-```
-
----
-
-## Soporte Multimemoria: Corte por memoryId
-
-Toda operación (crear, recuperar, actualizar nodo) lleva siempre un **memoryId**.
-
-- Permite gestionar memorias paralelas: cada agente, canal o usuario puede tener su propio historial, segregado y seguro.
-- Facilita despliegues SaaS y operaciones multi-tenant sin colisiones.
-
----
-
-## Arquitectura Interna (Resumen)
-
-- **MemoryService**: orquesta la persistencia, vectorización y versión de nodos.
-- **EmbeddingProvider**: proveedor intercambiable para embeddings (local, API, etc).
-- **VectorIndex**: backend plug&play para almacenamiento eficiente (we use pgvector, but you can use any other vector database)
-- **Hooks**: callbacks para recuperación condicional.
-
-
-## Instalacion de pgvector
-
-```bash
-brew install postgresql
-```
-
-## Creacion de la base de datos
-```bash
-CREATE DATABASE hubeet_memory;
-CREATE USER hubeet_user WITH ENCRYPTED PASSWORD 'yourpassword';
-GRANT ALL PRIVILEGES ON DATABASE hubeet_memory TO hubeet_user;
-```
-
-## Creacion de la tabla
-```
 CREATE TABLE memory_nodes (
-  id SERIAL PRIMARY KEY,
-  text_original TEXT NOT NULL,
-  embedding FLOAT8[] NOT NULL,
-  memory_id TEXT NOT NULL,
-  version_tag INT DEFAULT 1
-);```
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  memory_id TEXT,
+  text_original TEXT,
+  embedding VECTOR(1536),
+  version_tag INTEGER DEFAULT 1,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  ignore_score REAL DEFAULT 0,
+  layer INTEGER DEFAULT 0,
+  source_ids TEXT[]
+);
+```
+
 ---
 
-
-# Vector Index Service
-
-...
-
-## Ejemplo: Uso de `MemorySelector` con Contexto Actual Automático
+## Ejemplo de uso básico
 
 ```ts
-const context = await memorySelector.retrieveRelevantMemories({
-  query: '¿Cómo construyo el contexto actual en un sistema de memoria semántica?',
-  memoryId: 'user-session-42',
-  userIntent: 'Optimizar la selección de recuerdos en IA conversacional',
-  activeFile: 'app.ts',
-  tags: ['memory', 'llm', 'selector']
+await memoryService.createNode("La memoria semántica mejora la comprensión contextual", "soporte-123");
+```
+
+```ts
+await memorySelector.retrieveRelevantMemories({
+  query: "¿Qué ventajas tiene usar memoria vectorial?",
+  memoryId: "soporte-123",
+  userIntent: "explicar ventajas",
+  tags: ["llm", "contexto"],
+  debug: true
 });
 ```
 
-### Internamente genera:
-
-```text
-INTENCIÓN DEL USUARIO: Optimizar la selección de recuerdos en IA conversacional
-PREGUNTA: ¿Cómo construyo el contexto actual en un sistema de memoria semántica?
-TAGS: memory, llm, selector
-ARCHIVO ACTUAL: app.ts
-```
-
-### Resultado esperado:
-
+Resultado:
 ```ts
 [
-  {
-    id: 'node-001',
-    text_original: 'Podés construir el contexto actual combinando la intención, archivo activo y los tags técnicos',
-    similarity: 0.92
-  },
-  {
-    id: 'node-047',
-    text_original: 'Una buena estrategia para recuperar recuerdos es usar embeddings de la situación actual',
-    similarity: 0.87
-  }
+  { id: "n1", similarity: 0.91, layer: 0, text_original: "La memoria semántica..." },
+  { id: "n2", similarity: 0.87, layer: 1, text_original: "Resumen de 5 ideas sobre..." }
 ]
 ```
 
+---
 
+## Propuestas implementadas
 
-## Roadmap
+### 10. Modelos que Recuerdan Qué Ignorar
 
-- Fine-tuning de criterios de compresión/contextualización.
-- Auditoría y trazabilidad de operaciones.
-- Sincronización multimemoria y federación.
+- Cada recuerdo tiene un `ignore_score`
+- Si es descartado, se penaliza (sube)
+- Si se vuelve a usar, se recompensa (baja)
+- Se ajusta el ranking en la búsqueda: `similaridad + penalización`
+
+### 9. Red de Compresión Semántica Jerárquica
+
+- Se pueden agrupar varios recuerdos (`layer = 0`) y generar un resumen (`layer = 1`)
+- Esto permite razonamiento más rápido y menos costoso
+
+```ts
+await vectorIndex.compressNodes({
+  nodes: [nodo1, nodo2, nodo3],
+  memoryId: "soporte-123"
+});
+```
 
 ---
 
-## Créditos y Contacto
+## Debug + Audit Trail (opcional)
 
-hubeet-memory-manager es parte de Hubeet (Solúnika).
+Usá `debug: true` en cualquier llamada a `retrieveRelevantMemories(...)` para ver el contexto generado antes del embedding.
 
-Contribuciones y feedback: [devops@solunika.com](mailto:devops@solunika.com)
+```ts
+// Output en consola:
+🔍 Contexto generado para embedding:
+INTENCIÓN DEL USUARIO: explicar ventajas
+PREGUNTA: ¿Qué ventajas tiene usar memoria vectorial?
+TAGS: llm, contexto
+```
+
+---
+
+## Glosario
+
+- `embedding`: vector numérico que representa semánticamente un texto.
+- `layer`: nivel jerárquico del recuerdo (0 = detalle, 1 = resumen).
+- `ignore_score`: penalización acumulada si un nodo no resulta útil.
+- `context embedding`: vector generado del estado actual para buscar.
+- `selector`: módulo que decide qué recuerdos traer.
+
+---
+
+## Futuro
+
+- UI para explorar la red de recuerdos
+- Rutas de expansión contextual progresiva
+- Integración con agentes autónomos Hubeet
+
+---
+
+Hecho con cariño por el equipo de **Hubeet**.

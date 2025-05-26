@@ -38,7 +38,9 @@ export class VectorIndex {
 		}
 		const vectorString = this.formatVector(data.embedding);
 		const result = await this.pool.query(
-			`INSERT INTO memory_nodes (text_original, embedding, memory_id, version_tag) VALUES ($1, $2::vector, $3, 1) RETURNING *`,
+			`INSERT INTO memory_nodes (text_original, embedding, memory_id, version_tag, ignore_score)
+			 VALUES ($1, $2::vector, $3, 1, 0)
+			 RETURNING *`,
 			[data.text_original, vectorString, data.memoryId],
 		);
 		return result.rows[0];
@@ -48,10 +50,11 @@ export class VectorIndex {
 		const vectorString = this.formatVector(embedding);
 		const operator = this.getOperator(distance);
 		const result = await this.pool.query(
-			`SELECT *, embedding ${operator} $1::vector as similarity
+			`SELECT *,
+			 (embedding ${operator} $1::vector + 0.1 * ignore_score) as penalized_similarity
 			 FROM memory_nodes
 			 WHERE memory_id = $2
-			 ORDER BY similarity
+			 ORDER BY penalized_similarity
 			 LIMIT $3 OFFSET $4`,
 			[vectorString, memoryId, topK, offset],
 		);
@@ -92,10 +95,87 @@ export class VectorIndex {
 			if (!this.validateDimensions(embedding)) {
 				throw new BadRequestException('Invalid vector dimensions in bulk insert');
 			}
-			return `('${text_original.replace(/'/g, "''")}', '${this.formatVector(embedding)}'::vector, '${memoryId}', 1)`;
+			return `('${text_original.replace(/'/g, "''")}', '${this.formatVector(embedding)}'::vector, '${memoryId}', 1, 0)`;
 		});
-		const query = `INSERT INTO memory_nodes (text_original, embedding, memory_id, version_tag) VALUES ${values.join(',')} RETURNING *`;
+		const query = `INSERT INTO memory_nodes (text_original, embedding, memory_id, version_tag, ignore_score) VALUES ${values.join(',')} RETURNING *`;
 		const result = await this.pool.query(query);
 		return result.rows;
 	}
-} 
+
+	async markAsIgnored(nodeIds: string[], memoryId: string) {
+		const idsStr = nodeIds.map(id => `'${id}'`).join(',');
+		await this.pool.query(
+			`UPDATE memory_nodes
+			 SET ignore_score = ignore_score + 1
+			 WHERE id IN (${idsStr}) AND memory_id = $1`,
+			[memoryId],
+		);
+	}
+
+	async rewardNodeAccess(nodeIds: string[], memoryId: string) {
+		const idsStr = nodeIds.map(id => `'${id}'`).join(',');
+		await this.pool.query(
+			`UPDATE memory_nodes
+			 SET ignore_score = GREATEST(ignore_score - 1, 0)
+			 WHERE id IN (${idsStr}) AND memory_id = $1`,
+			[memoryId],
+		);
+	}
+
+	async compressNodes(params: {
+		nodes: { id: string; text_original: string; embedding: number[] }[];
+		memoryId: string;
+		summaryText?: string; // opcional si querés inyectar tu propia síntesis
+	}) {
+		const { nodes, memoryId, summaryText } = params;
+
+		if (nodes.length === 0) throw new Error('No nodes provided for compression');
+		const embeddingSize = nodes[0].embedding.length;
+
+		// 1. Promediar embeddings
+		const summed = new Array(embeddingSize).fill(0);
+		for (const node of nodes) {
+			node.embedding.forEach((v, i) => { summed[i] += v; });
+		}
+		const avgEmbedding = summed.map(val => val / nodes.length);
+
+		// 2. Sintetizar texto
+		const combinedText = summaryText ?? `Resumen de ${nodes.length} recuerdos:\n` +
+			nodes.map(n => `- ${n.text_original}`).join('\n');
+
+		// 3. Insertar nodo jerárquico
+		const vectorString = this.formatVector(avgEmbedding);
+		const sourceIds = nodes.map(n => n.id);
+
+		const result = await this.pool.query(
+			`INSERT INTO memory_nodes (text_original, embedding, memory_id, version_tag, ignore_score, layer, source_ids)
+     VALUES ($1, $2::vector, $3, 1, 0, 1, $4)
+     RETURNING *`,
+			[combinedText, vectorString, memoryId, sourceIds]
+		);
+
+		return result.rows[0];
+	}
+
+	async searchByLayer(
+		embedding: number[],
+		topK: number,
+		memoryId: string,
+		distance: DistanceMetric = 'euclidean',
+		layer: number,
+		offset = 0
+	) {
+		const vectorString = this.formatVector(embedding);
+		const operator = this.getOperator(distance);
+		const result = await this.pool.query(
+			`SELECT *,
+		 (embedding ${operator} $1::vector + 0.1 * ignore_score) as penalized_similarity
+		 FROM memory_nodes
+		 WHERE memory_id = $2 AND layer = $3
+		 ORDER BY penalized_similarity
+		 LIMIT $4 OFFSET $5`,
+			[vectorString, memoryId, layer, topK, offset],
+		);
+		return result.rows;
+	}
+}
